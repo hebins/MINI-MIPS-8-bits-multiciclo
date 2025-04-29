@@ -1,6 +1,6 @@
 # MINI-MIPS-8-bits-multiciclo
 
-# 🧠 MINI MIPS 8 bits Multicíclo - Simulador em C
+## 🧠 MINI MIPS 8 bits Multicíclo - Simulador em C
 
 Este repositório contém um simulador desenvolvido em linguagem C para um processador MINI MIPS de 8 bits com arquitetura multicíclo. O projeto tem como objetivo auxiliar no entendimento do funcionamento interno de processadores baseados na arquitetura MIPS, explorando conceitos como estados do controle, datapath e execução multicíclica de instruções.
 
