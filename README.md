@@ -20,7 +20,7 @@ R-Type: add, sub, and, or
 
 I-Type: lw, sw, beq, addi
 
-Jumps: j (se implementado)
+Jumps: j
 
 ## 🎓 Objetivos Educacionais
 Este projeto foi desenvolvido como ferramenta de aprendizado para disciplinas como Organização de Computadores e Arquitetura de Processadores. Ele visa facilitar a visualização da execução passo a passo das instruções em uma arquitetura de controle multicíclo.
