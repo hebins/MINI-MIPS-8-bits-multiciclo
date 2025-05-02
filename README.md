@@ -23,7 +23,7 @@ I-Type: lw, sw, beq, addi
 Jumps: j
 
 ## 🎓 Objetivos Educacionais
-Este projeto foi desenvolvido como ferramenta de aprendizado para disciplinas como Organização de Computadores e Arquitetura de Processadores. Ele visa facilitar a visualização da execução passo a passo das instruções em uma arquitetura de controle multicíclo.
+Este projeto foi desenvolvido como ferramenta de aprendizado para disciplinas como Arquitetura e Organização de Computadores e Algoritmos e Estruturas de Dados. Ele visa facilitar a visualização da execução passo a passo das instruções em uma arquitetura de controle multicíclo.
 
 ## 📄 Licença
 Este projeto está licenciado sob a MIT License.
