@@ -44,8 +44,10 @@ void executa_proxima_instrucao(struct estado_processador *estado) {
                 estado->step_atual = 7;  // Próximo passo: WB
             } else if(estado->RI.opcode == 15){ //SW
                 estado->ULASaida = estado->A + ((short)(estado->RI & 0x3F) << 10 >> 10);
-                
                 estado->step_atual = 5;
+            } else if(estado->RI.opcode == 11){ //LW
+                estado->ULASaida = estado->A + ((short)(estado->RI & 0x3F) << 10 >> 10);
+                estado->step_atual = 3;
             }
             break;
         }
@@ -57,17 +59,23 @@ void executa_proxima_instrucao(struct estado_processador *estado) {
             estado->step_atual = 0;  // Reinicia ciclo
             break;
         }
-
-        // ============= PASSOS 4+ (COMENTADOS PARA OUTRAS INSTRUÇÕES) =============
-        case 5: {
-            estado->mem_dados[estado->ULASaida] = estado->B;
-
-            estado->step_atual = 0;
-        }
-        /*
-        case 4: {  // Para LW/SW (seus colegas implementam)
+        case 3: {  // Fase memória do lw
+            estado->MDR = estado->mem_dados[estado->ULASaida];  // Carrega dado da memória para MDR
+            estado->step_atual = 4;  //
             break;
         }
+        case 5: {
+            estado->mem_dados[estado->ULASaida] = estado->B;
+            estado->step_atual = 0;
+        }
+
+        // ============= PASSOS 4+ (COMENTADOS PARA OUTRAS INSTRUÇÕES) =============
+        case 4: {  // Fase escrever do lw
+            estado->registradores[estado->rt] = estado->MDR;  // Escreve MDR no registrador rt
+            estado->step_atual = 0;  // Reinicia para FETCH
+            break;
+        }
+        
         */
     }
 
