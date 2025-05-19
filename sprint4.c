@@ -72,6 +72,8 @@ void step(struct estado_processador *estado);
 int binario_para_decimal(const char *binario);
 void armazenaRI(struct estado_processador *estado);
 void criaasm(struct estado_processador *estado, const char *nome_arquivo);
+void salvar_estado_para_arquivo(struct estado_processador *estado, const char *filename);
+void mostrar_estado_processador(struct estado_processador *estado);
 
 // ================= FUNÇÃO PRINCIPAL =================
 int main(void) {
@@ -125,11 +127,15 @@ int main(void) {
                     }
                     break;
                 case 3: 
-                    mostrar_registradores(cpu.registradores);
-                    printf("\n");
-                    print_memory(&cpu.memory); 
-                    break;
-                case 4: break;
+                    mostrar_estado_processador(&cpu);
+					break;
+                case 4: 
+					printf("Digite o nome do arquivo para salvar: ");
+					char filename[256];
+					fgets(filename, sizeof(filename), stdin);
+					filename[strcspn(filename, "\n")] = '\0';
+					salvar_estado_para_arquivo(&cpu, filename);
+					break;
                 case 5:
                 if (cpu.memory.num_instrucoes > 0) {
                         printf("Digite o nome do arquivo de saída (.asm): ");
@@ -601,4 +607,114 @@ void criaasm(struct estado_processador *estado, const char *nome_arquivo) {
     
     fclose(arqasm);
     printf("Arquivo assembly gerado com sucesso: %s\n", nome_arquivo);
+}
+
+void mostrar_estado_processador(struct estado_processador *estado) {
+    printf("\n=== Estado do Processador ===\n");
+    printf("PC: %d (anterior: %d)\n", estado->pc.valor, estado->pc.prev_valor);
+    printf("Halt flag: %d\n", estado->halt_flag);
+    printf("Passos executados: %d\n", estado->passos_executados);
+    
+    mostrar_registradores(estado->registradores);
+    
+    print_memory(&estado->memory);
+    
+    printf("\nPróxima instrução a executar:\n");
+    if (estado->pc.valor < estado->memory.num_instrucoes) {
+        print_instrucao(&estado->memory.instr_decod[estado->pc.valor]);
+    } else {
+        printf("Nenhuma (fim do programa alcançado)\n");
+    }
+}
+void salvar_estado_para_arquivo(struct estado_processador *estado, const char *filename) {
+    FILE *file = fopen(filename, "a");  
+    if (!file) {
+        perror("Erro ao abrir arquivo");
+        return;
+    }
+
+    fprintf(file, "\n=== Estado do Processador ===\n");
+    fprintf(file, "PC: %d (anterior: %d)\n", estado->pc.valor, estado->pc.prev_valor);
+    fprintf(file, "Halt flag: %d\n", estado->halt_flag);
+    fprintf(file, "Passos executados: %d\n", estado->passos_executados);
+    
+    // Salva registradores
+    fprintf(file, "\nRegistradores:\n");
+    for (int i = 0; i < REG_COUNT; i++) {
+        fprintf(file, "$%d = %d\n", i, estado->registradores[i]);
+    }
+    
+    // Salva memória
+    fprintf(file, "\nMemória:\n");
+    fprintf(file, "End. | Binário           | Tipo | Opcode | rs | rt | rd | funct | imm  | addr  | Dado\n");
+    fprintf(file, "-----------------------------------------------------------------------------------------\n");
+
+    for (int i = 0; i < MEM_SIZE; i++) {
+        if (i < estado->memory.num_instrucoes || (i >= DATA_START && estado->memory.instr_decod[i].tipo == tipo_dado)) {
+            fprintf(file, "%3d  | %-16s | ", i, estado->memory.instr_decod[i].binario);
+            
+            switch(estado->memory.instr_decod[i].tipo) {
+                case tipo_R:
+                    fprintf(file, "R  | %6d | %2d | %2d | %2d | %5d |      |       |\n",
+                           estado->memory.instr_decod[i].opcode,
+                           estado->memory.instr_decod[i].rs,
+                           estado->memory.instr_decod[i].rt,
+                           estado->memory.instr_decod[i].rd,
+                           estado->memory.instr_decod[i].funct);
+                    break;
+                case tipo_I:
+                    fprintf(file, "I  | %6d | %2d | %2d |    |       | %4d |       |\n",
+                           estado->memory.instr_decod[i].opcode,
+                           estado->memory.instr_decod[i].rs,
+                           estado->memory.instr_decod[i].rt,
+                           estado->memory.instr_decod[i].imm);
+                    break;
+                case tipo_J:
+                    fprintf(file, "J  | %6d |    |    |    |       |      | %5d |\n",
+                           estado->memory.instr_decod[i].opcode,
+                           estado->memory.instr_decod[i].addr);
+                    break;
+                case tipo_dado:
+                    fprintf(file, "DADO |       |    |    |    |       |      |       | %5d\n",
+                           estado->memory.instr_decod[i].dado);
+                    break;
+                default:
+                    fprintf(file, "?  | %6d |    |    |    |       |      |       |\n",
+                           estado->memory.instr_decod[i].opcode);
+            }
+        }
+    }
+    
+    // Próxima instrução
+    fprintf(file, "\nPróxima instrução a executar:\n");
+    if (estado->pc.valor < estado->memory.num_instrucoes) {
+        fprintf(file, "Binário: %s\n", estado->memory.instr_decod[estado->pc.valor].binario);
+        fprintf(file, "Opcode: %d | Tipo: ", estado->memory.instr_decod[estado->pc.valor].opcode);
+        switch (estado->memory.instr_decod[estado->pc.valor].tipo) {
+            case tipo_R:
+                fprintf(file, "R | rs: %d, rt: %d, rd: %d, funct: %d\n", 
+                      estado->memory.instr_decod[estado->pc.valor].rs,
+                      estado->memory.instr_decod[estado->pc.valor].rt,
+                      estado->memory.instr_decod[estado->pc.valor].rd,
+                      estado->memory.instr_decod[estado->pc.valor].funct);
+                break;
+            case tipo_I:
+                fprintf(file, "I | rs: %d, rt: %d, imm: %d\n", 
+                      estado->memory.instr_decod[estado->pc.valor].rs,
+                      estado->memory.instr_decod[estado->pc.valor].rt,
+                      estado->memory.instr_decod[estado->pc.valor].imm);
+                break;
+            case tipo_J:
+                fprintf(file, "J | addr: %d\n", 
+                      estado->memory.instr_decod[estado->pc.valor].addr);
+                break;
+            default:
+                fprintf(file, "Inválido\n");
+        }
+    } else {
+        fprintf(file, "Nenhuma (fim do programa alcançado)\n");
+    }
+    
+    fclose(file);
+    printf("Estado salvo em '%s'\n", filename);
 }
