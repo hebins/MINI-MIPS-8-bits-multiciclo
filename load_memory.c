@@ -75,6 +75,7 @@ void criaasm(struct estado_processador *estado, const char *nome_arquivo);
 void salvar_estado_para_arquivo(struct estado_processador *estado, const char *filename);
 void mostrar_estado_processador(struct estado_processador *estado);
 void salvar_memoria_arquivo(struct estado_processador *estado, const char *filename);
+void salvar_memoria_recarregavel(struct estado_processador *estado, const char *filename);
 
 // ================= FUNÇÃO PRINCIPAL =================
 int main(void) {
@@ -101,7 +102,12 @@ int main(void) {
                 case 1: step(&cpu); break;
                 case 2: mostrar_registradores(cpu.registradores); break;
                 case 3: print_memory(&cpu.memory); break;
-                case 4: print_memory(&cpu.memory); break;
+                case 4: 
+                printf("Digite o nome do arquivo para salvar: ");
+				fgets(filename, sizeof(filename), stdin);
+				filename[strcspn(filename, "\n")] = '\0';
+				salvar_memoria_recarregavel(&cpu, filename);
+				break;
                 case 5: break;
                 case 6: 
                 printf("Digite o nome do arquivo para salvar: ");
@@ -334,7 +340,7 @@ void display_menu_execucao() {
     printf("1. Executar próxima instrução\n");
     printf("2. Mostrar registradores\n");
     printf("3. Mostrar memória completa\n");
-    printf("4. Mostrar memória\n");
+    printf("4. Salvar memória em arquivo recerregável\n");
     //printf("5. Salvar instruções executadas\n");
     printf("6. Salvar memória em arquivo\n");
     printf("7. Voltar instrução anterior\n");
@@ -804,4 +810,29 @@ void print_memory(const Memory *memory) {
                        opcode);
         }
     }
+}
+void salvar_memoria_recarregavel(struct estado_processador *estado, const char *filename) {
+    FILE *file = fopen(filename, "w");
+    if (!file) {
+        perror("Erro ao criar arquivo");
+        return;
+    }
+
+    // Salva as instruções (formato binário puro)
+    for (int i = 0; i < estado->memory.num_instrucoes; i++) {
+        fprintf(file, "%s\n", estado->memory.instr_decod[i].binario);
+    }
+
+    // Salva os dados com marcador .data
+    if (estado->memory.num_instrucoes < MEM_SIZE) {
+        fprintf(file, ".data\n");
+        for (int i = DATA_START; i < MEM_SIZE; i++) {
+            if (estado->memory.instr_decod[i].tipo == tipo_dado) {
+                fprintf(file, "%s\n", estado->memory.instr_decod[i].binario);
+            }
+        }
+    }
+
+    fclose(file);
+    printf("Memória salva em '%s' (formato compatível com load_memory)\n", filename);
 }
