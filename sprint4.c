@@ -35,11 +35,6 @@ typedef struct {
     int num_instrucoes;
 } Memory;
 
-struct pc {
-    int valor;
-    int prev_valor;
-};
-
 typedef struct regs {
     struct inst_dados RI;
     int RDM;
@@ -48,14 +43,38 @@ typedef struct regs {
     int ULASaida;
 } REGS;
 
+struct estado_salvo {
+    struct inst_dados RI;
+    int RDM;
+    int A;
+    int B;
+    int ULASaida;
+    int pc;
+    int registradores[REG_COUNT];
+    Memory memory;
+    int step_atual;
+};
+
+typedef struct node {
+    struct estado_salvo estado;
+    struct node* next;
+} Node;
+
+typedef struct {
+    Node* top;
+    int size;
+} Stack;
+
 struct estado_processador {
     Memory memory;
     int registradores[REG_COUNT];
-    struct pc pc;
+    int pc;
+    int pc_prev;
     int halt_flag;
     int passos_executados;
     REGS regs;
     int step_atual;
+    Stack historico_stack;
 };
 
 // ================= PROTÓTIPOS DE FUNÇÕES =================
@@ -74,8 +93,14 @@ void armazenaRI(struct estado_processador *estado);
 void criaasm(struct estado_processador *estado, const char *nome_arquivo);
 void salvar_estado_para_arquivo(struct estado_processador *estado, const char *filename);
 void mostrar_estado_processador(struct estado_processador *estado);
-void salvar_memoria_arquivo(struct estado_processador *estado, const char *filename);
+int step_back(struct estado_processador *estado);
+void init_stack(Stack *s);
+void push(Stack *s, struct estado_processador *estado);
+int pop(Stack *s, struct estado_salvo *estado_saida);
+int vazio(Stack *s);
 void salvar_memoria_recarregavel(struct estado_processador *estado, const char *filename);
+void print_memory(const Memory *memory);
+void salvar_memoria_arquivo(struct estado_processador *estado, const char *filename);
 
 // ================= FUNÇÃO PRINCIPAL =================
 int main(void) {
@@ -102,20 +127,10 @@ int main(void) {
                 case 1: step(&cpu); break;
                 case 2: mostrar_registradores(cpu.registradores); break;
                 case 3: print_memory(&cpu.memory); break;
-                case 4: 
-                printf("Digite o nome do arquivo para salvar: ");
-				fgets(filename, sizeof(filename), stdin);
-				filename[strcspn(filename, "\n")] = '\0';
-				salvar_memoria_recarregavel(&cpu, filename);
-				break;
+                case 4: break;
                 case 5: break;
-                case 6: 
-                printf("Digite o nome do arquivo para salvar: ");
-				fgets(filename, sizeof(filename), stdin);
-				filename[strcspn(filename, "\n")] = '\0';
-				salvar_memoria_arquivo(&cpu, filename);
-				break;
-                case 7: break;
+                case 6: break;
+                case 7: step_back(&cpu); break;
                 case 8: em_execucao = 0; break;
                 case 9: printf("Total de instruções executadas: %d\n", cpu.passos_executados); break;
                 case 10: while (!cpu.halt_flag) step(&cpu); break;
@@ -158,13 +173,7 @@ int main(void) {
                         printf("Erro: Nenhuma instrução carregada para converter\n");
                     }
                     break;
-                case 6:
-                printf("Digite o nome do arquivo para salvar: ");
-				fgets(filename, sizeof(filename), stdin);
-				filename[strcspn(filename, "\n")] = '\0';
-				salvar_memoria_arquivo(&cpu, filename);
-				break;
-                case 7: sair = 1; break;
+                case 6: sair = 1; break;
                 default: printf("Opção inválida!\n");
             }
         }
@@ -174,6 +183,96 @@ int main(void) {
 }
 
 // ================= FUNÇÕES AUXILIARES =================
+
+void init_stack(Stack *s) {
+    s->top = NULL;
+    s->size = 0;
+}
+
+void push(Stack *s, struct estado_processador *estado) {
+    Node *novo = (Node*)malloc(sizeof(Node));
+    
+    novo->estado.RI = estado->regs.RI;
+    novo->estado.RDM = estado->regs.RDM;
+    novo->estado.A = estado->regs.A;
+    novo->estado.B = estado->regs.B;
+    novo->estado.ULASaida = estado->regs.ULASaida;
+    novo->estado.pc = estado->pc_prev;
+    novo->estado.step_atual = estado->step_atual;
+    
+    for(int i = 0; i < REG_COUNT; i++) {
+        novo->estado.registradores[i] = estado->registradores[i];
+    }
+    
+    novo->estado.memory = estado->memory;
+    
+    novo->next = s->top;
+    s->top = novo;
+    s->size++;
+}
+
+int pop(Stack *s, struct estado_salvo *estado_saida) {
+    if(s->top == NULL) return 0;
+    
+    Node *temp = s->top;
+    *estado_saida = temp->estado;
+    s->top = temp->next;
+    free(temp);
+    s->size--;
+    return 1;
+}
+
+int vazio(Stack *s) {
+    return s->top == NULL;
+}
+
+void print_memory(const Memory *memory) {
+    printf("\n=== Memória Decodificada ===\n");
+    printf("End. | Binário           | Tipo | Opcode | rs | rt | rd | funct | imm  | addr  | Dado\n");
+    printf("-----------------------------------------------------------------------------------------\n");
+
+    for (int i = 0; i < MEM_SIZE; i++) {
+        // Mostra apenas posições com conteúdo válido
+        if (i < memory->num_instrucoes || (i >= DATA_START && memory->instr_decod[i].tipo == tipo_dado)) {
+            printf("%3d  | %-16s | ", i, memory->instr_decod[i].binario);
+            
+            switch(memory->instr_decod[i].tipo) {
+                case tipo_R:
+                    printf("R  | %6d | %2d | %2d | %2d | %5d |      |       |\n",
+                           memory->instr_decod[i].opcode,
+                           memory->instr_decod[i].rs,
+                           memory->instr_decod[i].rt,
+                           memory->instr_decod[i].rd,
+                           memory->instr_decod[i].funct);
+                    break;
+                    
+                case tipo_I:
+                    printf("I  | %6d | %2d | %2d |    |       | %4d |       |\n",
+                           memory->instr_decod[i].opcode,
+                           memory->instr_decod[i].rs,
+                           memory->instr_decod[i].rt,
+                           memory->instr_decod[i].imm);
+                    break;
+                    
+                case tipo_J:
+                    printf("J  | %6d |    |    |    |       |      | %5d |\n",
+                           memory->instr_decod[i].opcode,
+                           memory->instr_decod[i].addr);
+                    break;
+                    
+                case tipo_dado:
+                    printf("DADO |       |    |    |    |       |      |       | %5d\n",
+                           memory->instr_decod[i].dado);
+                    break;
+                    
+                default:
+                    printf("?  | %6d |    |    |    |       |      |       |\n",
+                           memory->instr_decod[i].opcode);
+            }
+        }
+    }
+}
+
 
 void load_memory(Memory *memory, const char *filename) {
     FILE *file = fopen(filename, "r");
@@ -312,11 +411,11 @@ void print_instrucao(const struct inst_dados *ri) {
 
 void inicializar_processador(struct estado_processador *cpu) {
     memset(cpu, 0, sizeof(struct estado_processador));
-    cpu->pc.valor = 0;
-    cpu->pc.prev_valor = -1;
+    cpu->pc = 0;
     cpu->halt_flag = 1;
     cpu->passos_executados = 0;
     cpu->step_atual = 0;
+    init_stack(&cpu->historico_stack);
     
     for (int i = 0; i < REG_COUNT; i++) {
         cpu->registradores[i] = 0;
@@ -340,10 +439,10 @@ void display_menu_execucao() {
     printf("1. Executar próxima instrução\n");
     printf("2. Mostrar registradores\n");
     printf("3. Mostrar memória completa\n");
-    printf("4. Salvar memória em arquivo recerregável\n");
-    //printf("5. Salvar instruções executadas\n");
-    printf("6. Salvar memória em arquivo\n");
-    printf("7. Voltar instrução anterior\n");
+    //printf("4. Mostrar memória de dados\n");
+    printf("5. Salvar instruções executadas\n");
+    printf("6. Salvar memória de dados\n");
+    printf("7. Voltar ciclo anterior\n");
     printf("8. Voltar ao menu principal\n");
     printf("9. Mostrar total de instruções executadas\n");
     printf("10. Executar todas as instruções\n");
@@ -353,27 +452,29 @@ void display_menu_execucao() {
 
 void armazenaRI(struct estado_processador *estado){
 
-    if(estado->memory.instr_decod[estado->pc.valor].opcode == 0){
-        estado->memory.instr_decod[estado->pc.valor].tipo = estado->regs.RI.tipo;
-        estado->memory.instr_decod[estado->pc.valor].opcode = estado->regs.RI.opcode;
-        estado->memory.instr_decod[estado->pc.valor].rs = estado->regs.RI.rs;
-        estado->memory.instr_decod[estado->pc.valor].rt = estado->regs.RI.rt;
-        estado->memory.instr_decod[estado->pc.valor].rd = estado->regs.RI.rd;
-        estado->memory.instr_decod[estado->pc.valor].funct = estado->regs.RI.funct;
-    } else if(estado->memory.instr_decod[estado->pc.valor].opcode == 2){
-        estado->memory.instr_decod[estado->pc.valor].tipo = estado->regs.RI.tipo;
-        estado->memory.instr_decod[estado->pc.valor].opcode = estado->regs.RI.opcode;
-        estado->memory.instr_decod[estado->pc.valor].addr = estado->regs.RI.addr;
+    if(estado->memory.instr_decod[estado->pc].opcode == 0){
+        estado->memory.instr_decod[estado->pc].tipo = estado->regs.RI.tipo;
+        estado->memory.instr_decod[estado->pc].opcode = estado->regs.RI.opcode;
+        estado->memory.instr_decod[estado->pc].rs = estado->regs.RI.rs;
+        estado->memory.instr_decod[estado->pc].rt = estado->regs.RI.rt;
+        estado->memory.instr_decod[estado->pc].rd = estado->regs.RI.rd;
+        estado->memory.instr_decod[estado->pc].funct = estado->regs.RI.funct;
+    } else if(estado->memory.instr_decod[estado->pc].opcode == 2){
+        estado->memory.instr_decod[estado->pc].tipo = estado->regs.RI.tipo;
+        estado->memory.instr_decod[estado->pc].opcode = estado->regs.RI.opcode;
+        estado->memory.instr_decod[estado->pc].addr = estado->regs.RI.addr;
     } else {
-        estado->memory.instr_decod[estado->pc.valor].tipo = estado->regs.RI.tipo;
-        estado->memory.instr_decod[estado->pc.valor].opcode = estado->regs.RI.opcode;
-        estado->memory.instr_decod[estado->pc.valor].rs = estado->regs.RI.rs;
-        estado->memory.instr_decod[estado->pc.valor].rt = estado->regs.RI.rt;
-        estado->memory.instr_decod[estado->pc.valor].imm = estado->regs.RI.imm;
+        estado->memory.instr_decod[estado->pc].tipo = estado->regs.RI.tipo;
+        estado->memory.instr_decod[estado->pc].opcode = estado->regs.RI.opcode;
+        estado->memory.instr_decod[estado->pc].rs = estado->regs.RI.rs;
+        estado->memory.instr_decod[estado->pc].rt = estado->regs.RI.rt;
+        estado->memory.instr_decod[estado->pc].imm = estado->regs.RI.imm;
     }
 }
 
 void step(struct estado_processador *estado) {
+    push(&estado->historico_stack, estado);
+
     char aux[INSTR_BITS + 1];
 
     if (estado->halt_flag) {
@@ -382,16 +483,15 @@ void step(struct estado_processador *estado) {
     }
 
     printf("\nExecutando instrução [PC=%03d]:\n", 
-           estado->pc.valor);
+           estado->pc);
 
     switch(estado->step_atual) {
 
         case 0: { 
-            strncpy(estado->regs.RI.binario, estado->memory.instr_decod[estado->pc.valor].binario, INSTR_BITS);
+            strncpy(estado->regs.RI.binario, estado->memory.instr_decod[estado->pc].binario, INSTR_BITS);
             estado->regs.RI.binario[INSTR_BITS] = '\0';
 
-            estado->pc.prev_valor = estado->pc.valor;
-            estado->pc.valor = ula(ULA_ADD, estado->pc.valor, 1, NULL);
+            estado->pc = ula(ULA_ADD, estado->pc, 1, NULL);
 
             estado->step_atual = 1;
             break;
@@ -431,7 +531,7 @@ void step(struct estado_processador *estado) {
                     break;
                 }
                 /*case 8: { 
-                    estado->regs.ULASaida = ula(ULA_ADD, estado->pc.valor, estado->regs.RI.imm, NULL);
+                    estado->regs.ULASaida = ula(ULA_ADD, estado->pc, estado->regs.RI.imm, NULL);
                     estado->step_atual = 9;
                     break;
                 }*/
@@ -484,24 +584,54 @@ void step(struct estado_processador *estado) {
             int flag = -1;
             ula(ULA_SUB, estado->regs.A, estado->regs.B, &flag);
             if (flag == BEQ_FLAG) {
-                estado->pc.valor = estado->regs.ULASaida;
+                estado->pc = estado->regs.ULASaida;
             }
             estado->step_atual = 0;
             break;
         }*/
 
         case 10: { 
-            estado->pc.valor = estado->regs.RI.addr;
+            estado->pc = estado->regs.RI.addr;
             estado->step_atual = 0;
             break;
         }
     }
 
-    if (estado->pc.valor >= estado->memory.num_instrucoes && estado->step_atual == 0) {
+    if (estado->pc >= estado->memory.num_instrucoes && estado->step_atual == 0) {
         printf("Fim do programa alcançado\n");
         estado->halt_flag = 1;
     }
 }
+
+int step_back(struct estado_processador *estado) {
+    if (vazio(&estado->historico_stack)) {
+        printf("Nao ha estados anteriores para voltar.\n");
+        return 0;
+    }
+    
+    struct estado_salvo estado_anterior;
+    pop(&estado->historico_stack, &estado_anterior);
+    
+    estado->regs.RI = estado_anterior.RI;
+    estado->regs.RDM = estado_anterior.RDM;
+    estado->regs.A = estado_anterior.A;
+    estado->regs.B = estado_anterior.B;
+    estado->regs.ULASaida = estado_anterior.ULASaida;
+    estado->pc_prev = estado->pc;
+    estado->pc = estado_anterior.pc;
+    estado->step_atual = estado_anterior.step_atual;
+    
+    for(int i = 0; i < REG_COUNT; i++) {
+        estado->registradores[i] = estado_anterior.registradores[i];
+    }
+    
+    estado->memory = estado_anterior.memory;
+    
+    estado->halt_flag = (estado->pc >= estado->memory.num_instrucoes);
+    
+    return 1;
+}
+
 void criaasm(struct estado_processador *estado, const char *nome_arquivo) {
     char nome_completo[256];
     
@@ -581,7 +711,7 @@ void criaasm(struct estado_processador *estado, const char *nome_arquivo) {
 
 void mostrar_estado_processador(struct estado_processador *estado) {
     printf("\n=== Estado do Processador ===\n");
-    printf("PC: %d (anterior: %d)\n", estado->pc.valor, estado->pc.prev_valor);
+    printf("PC: %d (anterior: %d)\n", estado->pc, estado->pc_prev);
     printf("Halt flag: %d\n", estado->halt_flag);
     printf("Passos executados: %d\n", estado->passos_executados);
     
@@ -590,8 +720,8 @@ void mostrar_estado_processador(struct estado_processador *estado) {
     print_memory(&estado->memory);
     
     printf("\nPróxima instrução a executar:\n");
-    if (estado->pc.valor < estado->memory.num_instrucoes) {
-        print_instrucao(&estado->memory.instr_decod[estado->pc.valor]);
+    if (estado->pc < estado->memory.num_instrucoes) {
+        print_instrucao(&estado->memory.instr_decod[estado->pc]);
     } else {
         printf("Nenhuma (fim do programa alcançado)\n");
     }
@@ -604,7 +734,7 @@ void salvar_estado_para_arquivo(struct estado_processador *estado, const char *f
     }
 
     fprintf(file, "\n=== Estado do Processador ===\n");
-    fprintf(file, "PC: %d (anterior: %d)\n", estado->pc.valor, estado->pc.prev_valor);
+    fprintf(file, "PC: %d\n", estado->pc);
     fprintf(file, "Halt flag: %d\n", estado->halt_flag);
     fprintf(file, "Passos executados: %d\n", estado->passos_executados);
     
@@ -657,26 +787,26 @@ void salvar_estado_para_arquivo(struct estado_processador *estado, const char *f
     
     // Próxima instrução
     fprintf(file, "\nPróxima instrução a executar:\n");
-    if (estado->pc.valor < estado->memory.num_instrucoes) {
-        fprintf(file, "Binário: %s\n", estado->memory.instr_decod[estado->pc.valor].binario);
-        fprintf(file, "Opcode: %d | Tipo: ", estado->memory.instr_decod[estado->pc.valor].opcode);
-        switch (estado->memory.instr_decod[estado->pc.valor].tipo) {
+    if (estado->pc < estado->memory.num_instrucoes) {
+        fprintf(file, "Binário: %s\n", estado->memory.instr_decod[estado->pc].binario);
+        fprintf(file, "Opcode: %d | Tipo: ", estado->memory.instr_decod[estado->pc].opcode);
+        switch (estado->memory.instr_decod[estado->pc].tipo) {
             case tipo_R:
                 fprintf(file, "R | rs: %d, rt: %d, rd: %d, funct: %d\n", 
-                      estado->memory.instr_decod[estado->pc.valor].rs,
-                      estado->memory.instr_decod[estado->pc.valor].rt,
-                      estado->memory.instr_decod[estado->pc.valor].rd,
-                      estado->memory.instr_decod[estado->pc.valor].funct);
+                      estado->memory.instr_decod[estado->pc].rs,
+                      estado->memory.instr_decod[estado->pc].rt,
+                      estado->memory.instr_decod[estado->pc].rd,
+                      estado->memory.instr_decod[estado->pc].funct);
                 break;
             case tipo_I:
                 fprintf(file, "I | rs: %d, rt: %d, imm: %d\n", 
-                      estado->memory.instr_decod[estado->pc.valor].rs,
-                      estado->memory.instr_decod[estado->pc.valor].rt,
-                      estado->memory.instr_decod[estado->pc.valor].imm);
+                      estado->memory.instr_decod[estado->pc].rs,
+                      estado->memory.instr_decod[estado->pc].rt,
+                      estado->memory.instr_decod[estado->pc].imm);
                 break;
             case tipo_J:
                 fprintf(file, "J | addr: %d\n", 
-                      estado->memory.instr_decod[estado->pc.valor].addr);
+                      estado->memory.instr_decod[estado->pc].addr);
                 break;
             default:
                 fprintf(file, "Inválido\n");
