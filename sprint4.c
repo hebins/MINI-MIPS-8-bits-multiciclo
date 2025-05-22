@@ -460,6 +460,7 @@ void step(struct estado_processador *estado) {
         case 0: { 
             strncpy(estado->regs.RI.binario, estado->memory.instr_decod[estado->pc].binario, INSTR_BITS);
             estado->regs.RI.binario[INSTR_BITS] = '\0';
+            armazenaRI(estado);
 
             estado->pc = ula(ULA_ADD, estado->pc, 1, NULL);
 
@@ -468,7 +469,6 @@ void step(struct estado_processador *estado) {
         }
 
         case 1: { 
-            armazenaRI(estado);
             estado->regs.A = estado->registradores[estado->regs.RI.rs];
             estado->regs.B = estado->registradores[estado->regs.RI.rt];
             estado->regs.ULASaida = ula(ULA_ADD, estado->pc, estado->regs.RI.imm, NULL);
