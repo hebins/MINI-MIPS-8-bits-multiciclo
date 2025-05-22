@@ -365,13 +365,13 @@ void mostrar_registradores(int registradores[]) {
 
 void mostraregs(struct estado_processador *estado){
     printf("\n=== Registradores de Operação ===\n");
-    if(estado->memory.instr_decod[estado->pc].tipo == tipo_R) {
+    if(estado->regs.RI.tipo == tipo_R) {
         printf("Registrador de Instruções: Opcode: %d | RS: %d | RT: %d | RD: %d | Funct: %d\n", estado->regs.RI.opcode, estado->regs.RI.rs, estado->regs.RI.rt, estado->regs.RI.rd, estado->regs.RI.funct);
     } 
-    else if(estado->memory.instr_decod[estado->pc].tipo == tipo_I) {
+    else if(estado->regs.RI.tipo == tipo_I) {
         printf("Registrador de Instruções: Opcode: %d | RS: %d | RT: %d | IMM: %d\n", estado->regs.RI.opcode, estado->regs.RI.rs, estado->regs.RI.rt, estado->regs.RI.imm);
     }
-    else if(estado->memory.instr_decod[estado->pc].tipo == tipo_J) {
+    else if(estado->regs.RI.tipo == tipo_J) {
         printf("Registrador de Instruções: Opcode: %d | ADDR: %d\n", estado->regs.RI.opcode, estado->regs.RI.addr);
     }
     printf("Registrador de Dados de Memória: %d\nRegistrador A: %d\nRegistrador B: %d\nRegistrador ULASáida: %d\n", estado->regs.RDM, estado->regs.A, estado->regs.B, estado->regs.ULASaida);
@@ -601,6 +601,8 @@ int step_back(struct estado_processador *estado) {
     estado->memory = estado_anterior.memory;
     
     estado->halt_flag = (estado->pc >= estado->memory.num_instrucoes);
+
+    printf("\nEstado do registrador restaurado para um ciclo anterior!\n");
     
     return 1;
 }
