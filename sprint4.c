@@ -85,7 +85,7 @@ void print_instrucao(const struct inst_dados *ri);
 void display_menu_principal();
 void inicializar_processador(struct estado_processador *cpu);
 void step(struct estado_processador *estado);
-int binario_para_decimal(const char *binario);
+void int_para_binario(int valor, char *saida);
 void armazenaRI(struct estado_processador *estado);
 void criaasm(struct estado_processador *estado, const char *nome_arquivo);
 void salvar_estado_para_arquivo(struct estado_processador *estado, const char *filename);
@@ -99,6 +99,7 @@ void salvar_memoria_recarregavel(struct estado_processador *estado, const char *
 void print_memory(const Memory *memory);
 void salvar_memoria_arquivo(struct estado_processador *estado, const char *filename);
 void mostraregs(struct estado_processador *estado);
+void printinst(struct inst_dados *ri);
 
 // ================= FUNÇÃO PRINCIPAL =================
 int main(void) {
@@ -134,10 +135,16 @@ int main(void) {
                     step_back(&cpu);
 					break;
                 case 4: 
-					while (!cpu.halt_flag){ 
+					if (cpu.memory.num_instrucoes == 0) {
+                        printf("Erro: Nenhuma instrução carregada\n");
+                        break;
+                    }
+                    
+                    cpu.halt_flag = 0; // Garante que o processador está executando
+                    while (cpu.halt_flag == 0) { 
                         step(&cpu);
                     }
-					break;
+                    break;
                 case 5:
                     mostrar_estado_processador(&cpu);
                     break;
@@ -164,6 +171,17 @@ int main(void) {
 				    salvar_memoria_arquivo(&cpu, filename);
                     break;
                 case 11:
+                    printf("Digite o nome do arquivo para salvar: ");
+				    fgets(filename, sizeof(filename), stdin);
+				    filename[strcspn(filename, "\n")] = '\0';
+				    salvar_memoria_recarregavel(&cpu, filename);
+				    break;
+                case 12:
+                    printf("Digite o nome do arquivo para salvar: ");
+				    fgets(filename, sizeof(filename), stdin);
+				    filename[strcspn(filename, "\n")] = '\0';
+				    salvar_memoria_recarregavel(&cpu, filename);
+				    break;
                     if (cpu.memory.num_instrucoes > 0) {
                         printf("Digite o nome do arquivo de saída (.asm): ");
                         fgets(filename, sizeof(filename), stdin);
@@ -173,7 +191,7 @@ int main(void) {
                         printf("Erro: Nenhuma instrução carregada para converter\n");
                     }
                     break;
-                case 12: 
+                case 13: 
                     sair = 1; 
                     break;
                 default: printf("Opção inválida!\n");
@@ -331,7 +349,8 @@ int ula(enum ops_ula operacao, int a, int b, int *flag) {
     switch (operacao) {
         case ULA_ADD:
             resultado = a + b;
-            if ((a > 0 && b > 0 && resultado < 0) || (a < 0 && b < 0 && resultado > 0)) {
+            if ((a > 0 && b > 0 && resultado > 128) || (a < 0 && b < 0 && resultado > 0)) {
+                printf("OVERFLOW\n");
                 if (flag) *flag = OVERFLOW_FLAG;
             }
             break;
@@ -414,8 +433,9 @@ void display_menu_principal() {
     printf("8. Mostrar total de instruções executadas\n");
     printf("9. Salvar estado do processador em arquivo\n");
     printf("10. Salvar memória em arquivo\n");
-    printf("11. Gerar arquivo assembly\n"); 
-    printf("12. Sair\n");
+    printf("11. Salvar memória em arquivo recerregável\n");
+    printf("12. Gerar arquivo assembly\n"); 
+    printf("13. Sair\n");
     printf("======================\n");
     printf("Escolha uma opção: ");
 }
@@ -453,8 +473,6 @@ void step(struct estado_processador *estado) {
 
     char aux[INSTR_BITS + 1];
 
-    printf("\nExecutando instrução [PC=%03d]:\nEstado da Máquina de estados atual: %d\n", estado->pc, estado->step_atual);
-
     switch(estado->step_atual) {
 
         case 0: { 
@@ -481,11 +499,13 @@ void step(struct estado_processador *estado) {
                 case 8:  estado->step_atual = 9;  break; // BEQ
                 case 2:  estado->step_atual = 10; break; // JUMP
             }
+            
             break;
         }
 
         case 2: { 
             switch (estado->regs.RI.opcode) {
+
                 case 4:{ 
                     estado->regs.ULASaida = ula(ULA_ADD, estado->regs.A, estado->regs.RI.imm, NULL);
                     estado->step_atual = 6;
@@ -508,6 +528,8 @@ void step(struct estado_processador *estado) {
         case 3: { 
             if (estado->regs.ULASaida >= 0 && estado->regs.ULASaida < MEM_SIZE) {
                 estado->regs.RDM = estado->memory.instr_decod[estado->regs.ULASaida].dado;
+            }else{
+                printf("RDM não atualizado\n");
             }
             estado->step_atual = 4;
             break;
@@ -522,11 +544,15 @@ void step(struct estado_processador *estado) {
 
         case 5: { 
             if (estado->regs.ULASaida >= 0 && estado->regs.ULASaida < MEM_SIZE) {
-                snprintf(aux, INSTR_BITS + 1, "%016d", estado->regs.B);
+                estado->memory.instr_decod[estado->regs.ULASaida].dado = estado->regs.B;
+                int_para_binario(estado->regs.B, aux);
                 strncpy(estado->memory.instr_decod[estado->regs.ULASaida].binario, aux, INSTR_BITS);
+                estado->memory.instr_decod[estado->regs.ULASaida].binario[INSTR_BITS] = '\0';
+                estado->memory.instr_decod[estado->regs.ULASaida].tipo = tipo_dado; 
             }
             estado->step_atual = 0;
             estado->passos_executados++;
+
             break;
         }
 
@@ -570,10 +596,54 @@ void step(struct estado_processador *estado) {
         }
     }
 
+    printf("\nExecutando instrução [PC=%03d]:\nEstado da Máquina de estados atual: %d\n", estado->pc, estado->step_atual);
+    printf("A: %d\n", estado->regs.A);
+    printf("B: %d\n", estado->regs.B);
+    printf("ULASaida: %d\n", estado->regs.ULASaida);
+    printf("RDM: %d\n", estado->regs.RDM);
+    printinst(&estado->regs.RI);
+
     if (estado->pc >= estado->memory.num_instrucoes && estado->step_atual == 0) {
         printf("Fim do programa alcançado\n");
         estado->halt_flag = 1;
     }
+}
+
+void printinst(struct inst_dados *ri){
+    printf("Instrução atual:");
+    if(ri->tipo == tipo_R){
+            if(ri->funct == 0){
+                printf("add $%d, $%d, $%d\n", ri->rd, ri->rs, ri->rt);
+            }
+            if(ri->funct == 2){
+                printf("sub $%d, $%d, $%d\n", ri->rd, ri->rs, ri->rt);
+            }
+            if(ri->funct == 4){
+                printf("and $%d, $%d, $%d\n", ri->rd, ri->rs, ri->rt);
+            }
+            if(ri->funct == 5){
+                printf("or $%d, $%d, $%d\n", ri->rd, ri->rs, ri->rt);
+            }
+        }
+        if(ri->tipo == tipo_I){
+            if(ri->opcode == 4){
+                printf("addi $%d, $%d, %d\n", ri->rt, ri->rs, ri->imm);
+            }
+            if(ri->opcode == 11){
+                printf("lw $%d, %d($%d)\n", ri->rt, ri->imm, ri->rs);
+            }
+            if(ri->opcode == 15){
+                printf("sw $%d, %d($%d)\n", ri->rt, ri->imm, ri->rs);
+            }
+            if(ri->opcode == 8){
+                printf("beq $%d, $%d, %d\n", ri->rt, ri->rs, ri->imm);
+            }
+        }
+        if(ri->tipo == tipo_J){
+            if(ri->opcode == 2){
+            printf("j %d\n", ri->addr);
+            }
+        }
 }
 
 int step_back(struct estado_processador *estado) {
@@ -869,61 +939,74 @@ void salvar_memoria_arquivo(struct estado_processador *estado, const char *filen
 }
 
 void print_memory(const Memory *memory) {
+
     printf("\n=== Memória Completa ===\n");
     printf("End. | Binário           | Tipo | Opcode | rs | rt | rd | funct | imm  | addr  | Dado\n");
     printf("-----------------------------------------------------------------------------------------\n");
 
     for (int i = 0; i < MEM_SIZE; i++) {
-        // Define valores padrão para posições vazias
-        char binario[INSTR_BITS+1] = "0000000000000000";
-        enum classe_inst tipo = tipo_INVALIDO;
-        int opcode = 0, rs = 0, rt = 0, rd = 0, funct = 0, imm = 0, addr = 0, dado = 0;
+        if (i >= DATA_START) {
+            if (memory->instr_decod[i].tipo == tipo_dado) {
+                printf("[%03d] %d\n", i, memory->instr_decod[i].dado);
+            } else {
+                printf("[%03d] 0\n", i);
+            }
+        } else {
+            char binario[INSTR_BITS + 1] = "0000000000000000";
+            enum classe_inst tipo = tipo_INVALIDO;
+            int opcode = 0, rs = 0, rt = 0, rd = 0, funct = 0, imm = 0, addr = 0, dado = 0;
 
-        // Se for uma posição válida, pega os valores reais
-        if (i < memory->num_instrucoes || (i >= DATA_START && memory->instr_decod[i].tipo == tipo_dado)) {
-            strncpy(binario, memory->instr_decod[i].binario, INSTR_BITS);
-            tipo = memory->instr_decod[i].tipo;
-            opcode = memory->instr_decod[i].opcode;
-            rs = memory->instr_decod[i].rs;
-            rt = memory->instr_decod[i].rt;
-            rd = memory->instr_decod[i].rd;
-            funct = memory->instr_decod[i].funct;
-            imm = memory->instr_decod[i].imm;
-            addr = memory->instr_decod[i].addr;
-            dado = memory->instr_decod[i].dado;
-        }
+            if (i < memory->num_instrucoes) {
+                strncpy(binario, memory->instr_decod[i].binario, INSTR_BITS);
+                tipo = memory->instr_decod[i].tipo;
+                opcode = memory->instr_decod[i].opcode;
+                rs = memory->instr_decod[i].rs;
+                rt = memory->instr_decod[i].rt;
+                rd = memory->instr_decod[i].rd;
+                funct = memory->instr_decod[i].funct;
+                imm = memory->instr_decod[i].imm;
+                addr = memory->instr_decod[i].addr;
+                dado = memory->instr_decod[i].dado;
+            }
 
-        printf("%3d  | %-16s | ", i, binario);
+            printf("%3d  | %-16s | ", i, binario);
             
-        switch(tipo) {
-            case tipo_R:
-                printf("R  | %6d | %2d | %2d | %2d | %5d |      |       |\n",
-                       opcode, rs, rt, rd, funct);
-                break;
-                
-            case tipo_I:
-                printf("I  | %6d | %2d | %2d |    |       | %4d |       |\n",
-                       opcode, rs, rt, imm);
-                break;
-                
-            case tipo_J:
-                printf("J  | %6d |    |    |    |       |      | %5d |\n",
-                       opcode, addr);
-                break;
-                
-            case tipo_dado:
-                printf("DADO |       |    |    |    |       |      |       | %5d\n",
-                       dado);
-                break;
-                
-            default:
-                printf("?  | %6d |    |    |    |       |      |       |\n",
-                       opcode);
+            switch (tipo) {
+                case tipo_R:
+                    printf("R  | %6d | %2d | %2d | %2d | %5d |      |       |\n",
+                           opcode, rs, rt, rd, funct);
+                    break;
+                case tipo_I:
+                    printf("I  | %6d | %2d | %2d |    |       | %4d |       |\n",
+                           opcode, rs, rt, imm);
+                    break;
+                case tipo_J:
+                    printf("J  | %6d |    |    |    |       |      | %5d |\n",
+                           opcode, addr);
+                    break;
+                case tipo_dado:
+                    printf("DADO |       |    |    |    |       |      |       | %5d\n",
+                           dado);
+                    break;
+                default:
+                    printf("?  | %6d |    |    |    |       |      |       |\n",
+                           opcode);
+            }
         }
     }
 }
+
 void salvar_memoria_recarregavel(struct estado_processador *estado, const char *filename) {
-    FILE *file = fopen(filename, "w");
+    char nome_completo[256];
+    
+    // Verifica se já termina com .mem (case insensitive)
+    if (strlen(filename) < 4 || (strcasecmp(filename + strlen(filename) - 4, ".mem") != 0)) {
+        snprintf(nome_completo, sizeof(nome_completo), "%s.mem", filename);
+    } else {
+        strncpy(nome_completo, filename, sizeof(nome_completo));
+    }
+    
+    FILE *file = fopen(nome_completo, "w");
     if (!file) {
         perror("Erro ao criar arquivo");
         return;
@@ -946,4 +1029,10 @@ void salvar_memoria_recarregavel(struct estado_processador *estado, const char *
 
     fclose(file);
     printf("Memória salva em '%s' (formato compatível com load_memory)\n", filename);
+}
+void int_para_binario(int valor, char *saida) {
+    for (int i = INSTR_BITS - 1; i >= 0; i--) {
+        saida[INSTR_BITS - 1 - i] = (valor & (1 << i)) ? '1' : '0';
+    }
+    saida[INSTR_BITS] = '\0';  // Null-terminador
 }
