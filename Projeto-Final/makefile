@@ -1,27 +1,22 @@
-# Compilador e flags
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c99 -Iinclude
-LDFLAGS = -Wall
+CFLAGS = -Wall -Wextra -pedantic -std=c99
+TARGET = MiniMIPS
 
-# Nome do executável e arquivos
-EXEC = MiniMIPS
-SRCS = src/mainMIPS.c src/MiniMIPS.c
+SRCS = mainMIPS.c MiniMIPS.c
 OBJS = $(SRCS:.c=.o)
-HEADERS = include/MiniMIPS.h
 
-# Regras
-all: $(EXEC)
+all: $(TARGET)
 
-$(EXEC): $(OBJS)
-	$(CC) $(LDFLAGS) -o $@ $^
+$(TARGET): $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $^
 
-%.o: %.c $(HEADERS)
+%.o: %.c MiniMIPS.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(OBJS) $(EXEC)
+	rm -f $(OBJS) $(TARGET)
 
-run: $(EXEC)
-	./$(EXEC)
+run: $(TARGET)
+	./$(TARGET)
 
 .PHONY: all clean run
