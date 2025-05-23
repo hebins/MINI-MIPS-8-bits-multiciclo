@@ -483,7 +483,7 @@ void criaasm(struct estado_processador *estado, const char *nome_arquivo) {
     char nome_completo[256];
     
     // Verifica se já termina com .asm (case insensitive)
-    if (strlen(nome_arquivo) < 4 || (strncmp(nome_arquivo + strlen(nome_arquivo) - 4, ".asm") != 0)) {
+    if (strlen(nome_arquivo) < 4 || (strcasecmp(nome_arquivo + strlen(nome_arquivo) - 4, ".asm") != 0)) {
         snprintf(nome_completo, sizeof(nome_completo), "%s.asm", nome_arquivo);
     } else {
         strncpy(nome_completo, nome_arquivo, sizeof(nome_completo));
