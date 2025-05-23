@@ -79,11 +79,6 @@ int main(void) {
 				    salvar_memoria_recarregavel(&cpu, filename);
 				    break;
                 case 12:
-                    printf("Digite o nome do arquivo para salvar: ");
-				    fgets(filename, sizeof(filename), stdin);
-				    filename[strcspn(filename, "\n")] = '\0';
-				    salvar_memoria_recarregavel(&cpu, filename);
-				    break;
                     if (cpu.memory.num_instrucoes > 0) {
                         printf("Digite o nome do arquivo de saída (.asm): ");
                         fgets(filename, sizeof(filename), stdin);
