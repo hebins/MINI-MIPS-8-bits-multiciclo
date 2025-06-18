@@ -35,8 +35,8 @@ Este projeto foi desenvolvido como ferramenta de aprendizado para disciplinas co
 ## 📁 Organização do Código
 
 - `mainMIPS.c` – Função principal
-- `miniMIPS.h` – Estrutura e lógica do multiciclo
-- `miniMIPS.c` – Funções auxiliares de execução do simulador Mini MIPS
+- `MiniMIPS.h` – Estrutura e lógica do multiciclo
+- `MiniMIPS.c` – Funções auxiliares de execução do simulador Mini MIPS
 - `makefile` – Makefile para compilação da TAD
 
 ## 🔧 Como Compilar
