@@ -32,5 +32,17 @@ Este repositório contém um simulador desenvolvido em linguagem C para um proce
 ## 🎓 Objetivos Educacionais
 Este projeto foi desenvolvido como ferramenta de aprendizado para disciplinas como Arquitetura e Organização de Computadores e Algoritmos e Estruturas de Dados. Ele visa facilitar a visualização da execução passo a passo das instruções em uma arquitetura de controle multicíclo.
 
+## 📁 Organização do Código
+
+- `mainMIPS.c` – Função principal
+- `miniMIPS.h` – Estrutura e lógica do multiciclo
+- `miniMIPS.c` – Funções auxiliares de execução do simulador Mini MIPS
+- `makefile` – Makefile para compilação da TAD
+
+## 🔧 Como Compilar
+
+Digite no terminal:
+make
+
 ## 📄 Licença
 Este projeto está licenciado sob a MIT License.
