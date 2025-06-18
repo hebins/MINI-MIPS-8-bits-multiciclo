@@ -13,14 +13,21 @@ Este repositório contém um simulador desenvolvido em linguagem C para um proce
 - Saída detalhada do estado do processador a cada ciclo
 - Fácil modificação e extensão para fins educacionais
 
-## 📘 Instruções Suportadas
-O simulador suporta um subconjunto de instruções MIPS. Exemplos:
+## 🧩 Instruções Suportadas
 
-R-Type: add, sub, and, or
+| Tipo | Mnêmico | Descrição                 |
+|------|---------|---------------------------|
+| R    | `add`   | Soma registradores        |
+| R    | `sub`   | Subtração                 |
+| R    | `and`   | Operação AND lógica       |
+| R    | `or`    | Operação OR lógica        |
+| I    | `addi`  | Soma imediata             |
+| I    | `lw`    | Load word (carrega da memória) |
+| I    | `sw`    | Store word (salva na memória) |
+| I    | `beq`   | Branch se igual           |
+| J    | `j`     | Salto incondicional       |
 
-I-Type: lw, sw, beq, addi
-
-Jumps: j
+> As instruções seguem o formato binário de 16 bits, com campos para opcode, registradores e imediato/endereço conforme o tipo.
 
 ## 🎓 Objetivos Educacionais
 Este projeto foi desenvolvido como ferramenta de aprendizado para disciplinas como Arquitetura e Organização de Computadores e Algoritmos e Estruturas de Dados. Ele visa facilitar a visualização da execução passo a passo das instruções em uma arquitetura de controle multicíclo.
